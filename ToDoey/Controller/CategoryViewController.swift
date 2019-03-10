@@ -7,17 +7,18 @@
 //
 
 import UIKit
-import CoreData
+import RealmSwift
 
-class CategoryViewController: UITableViewController {
+class CategoryViewController: SwipeTableViewController {
     
-    var categoryArray = [Category]()
-    let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
-    var selectedRow: Int = -1
+    var categories : Results<Category>?
+    let realm = try! Realm()
     
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        
+        
         
         loadCategories()
     }
@@ -30,13 +31,11 @@ class CategoryViewController: UITableViewController {
             
             
             
-            let newCategory = Category(context: self.context)
+            let newCategory = Category()
             newCategory.name = textField.text!
             //newItem.done = false
-            
-            self.categoryArray.append(newCategory)
-            
-            self.saveCategories()
+                        
+            self.saveCategories(category: newCategory)
             
             
         }
@@ -54,57 +53,78 @@ class CategoryViewController: UITableViewController {
     //MARK - Data Source Methods
     
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return categoryArray.count
+        return categories?.count  ?? 1
     }
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "CategoryCell", for: indexPath)
-        cell.textLabel?.text = categoryArray[indexPath.row].name
-        //cell.accessoryType = itemArray[indexPath.row].done ? .checkmark : .none
+        let cell = super.tableView(tableView, cellForRowAt: indexPath)
+        cell.textLabel?.text = categories?[indexPath.row].name ?? "No categories added"
         
         return cell
     }
     
-    
     //MARK - Data Manipulation Methods
     
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-       // tableView.deselectRow(at: indexPath, animated: true)
+        
+        
 
         performSegue(withIdentifier: "goToItems", sender: self)
+        
+        print("Category: didselectRow")
+        
+        tableView.deselectRow(at: indexPath, animated: true)
+
         
     }
     
     override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
         if segue.identifier == "goToItems" {
             let destinationVC = segue.destination as! TodoListViewController
+            
             if let indexpath = tableView.indexPathForSelectedRow {
-            destinationVC.selectedCategory = categoryArray[indexpath.row]
+               destinationVC.selectedCategory = categories?[indexpath.row]
             }
                
         }
     }
     
-    func loadCategories(with request: NSFetchRequest<Category> = Category.fetchRequest()){
+    func loadCategories(){
         
-        do {
-            categoryArray = try context.fetch(request)
-            tableView.reloadData()
-        }
-        catch {
-            print("Error fetching data from database \(error)")
-        }
+       categories = realm.objects(Category.self)
+        tableView.reloadData()
+       
     }
     
-    func saveCategories(){
+    func saveCategories(category: Category){
         
         do {
-            try context.save()
+            try realm.write {
+                realm.add(category)
+            }
         }
         catch {
             print("Error Saving Context\(error)")
             
         }
+        tableView.reloadData()
+        
+    }
+    
+//MARK - Delete Data from swipe
+    
+    override func updateModel(at indexPath: IndexPath) {
+        
+        if let item = self.categories?[indexPath.row]{
+                        do {
+                            try self.realm.write {
+                                self.realm.delete(item)
+                            }
+                        }
+                        catch {
+                            print("Error delete Category: \(error)")
+                        }
+                    }
         tableView.reloadData()
         
     }
